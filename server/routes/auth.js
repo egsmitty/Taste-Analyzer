@@ -60,7 +60,13 @@ router.get('/callback', async (req, res) => {
       expiresAt: Date.now() + data.expires_in * 1000,
     };
 
-    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?auth=success`);
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?error=session_save_failed`);
+      }
+      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?auth=success`);
+    });
   } catch (err) {
     console.error('Spotify OAuth callback error:', err.response?.data || err.message);
     res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?error=token_exchange_failed`);
