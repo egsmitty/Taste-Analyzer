@@ -53,14 +53,16 @@ async function searchCandidates(client, tasteProfile, topTracks, listenedIds, us
       const { data } = await client.get('/search', {
         params: { q: query, type: 'track', limit: promptTerms ? 15 : 10 },
       });
-      for (const track of data.tracks?.items ?? []) {
+      const items = data.tracks?.items ?? [];
+      console.log(`[search] "${query}" → ${items.length} tracks`);
+      for (const track of items) {
         if (track?.id && !seen.has(track.id)) {
           seen.add(track.id);
           candidates.push(track);
         }
       }
-    } catch {
-      // Skip failed queries — partial results are fine
+    } catch (err) {
+      console.error(`[search] query failed: "${query}" —`, err.response?.status ?? err.message);
     }
   }
 
