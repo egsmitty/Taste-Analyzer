@@ -25,37 +25,65 @@ function extractSearchTerms(prompt) {
 }
 
 /**
- * When a prompt is given, find the reference track on Spotify to get the artist's
- * real genre tags (e.g. "country", "oklahoma country") — these are actual Spotify
- * genre IDs that work in search, unlike Claude-generated genre labels.
- * Returns { genres, excludeArtistId } so we can search the right genre and
- * exclude the reference artist's own songs.
+ * Finds the reference artist from a prompt by doing a quick track search,
+ * then returns their Spotify artist ID and related artists.
+ * This is better than genre search because Spotify's related-artists graph
+ * is a similarity engine, not a popularity chart.
  */
-async function resolveReferenceGenres(client, promptTerms) {
+async function resolveReferenceArtist(client, promptTerms) {
   try {
     const { data } = await client.get('/search', {
       params: { q: promptTerms, type: 'track', limit: 1 },
     });
     const refTrack = data.tracks?.items?.[0];
     if (!refTrack) return null;
-
     const refArtist = refTrack.artists?.[0];
     if (!refArtist?.id) return null;
-
-    const { data: artistData } = await client.get(`/artists/${refArtist.id}`);
-    const genres = artistData.genres ?? [];
-    if (genres.length === 0) return null;
-
-    return { genres: genres.slice(0, 3), excludeArtistId: refArtist.id };
+    return { artistId: refArtist.id };
   } catch {
     return null;
   }
 }
 
 /**
- * Searches Spotify for candidate tracks. When a prompt references a specific song/artist,
- * we look up that artist's real Spotify genres and search those — not the user's taste
- * profile genres, which would pollute results with unrelated music.
+ * Fetches top tracks from Spotify's related-artists graph for a given artist.
+ * Runs lookups in parallel. Returns raw Spotify track objects.
+ */
+async function getRelatedArtistTracks(client, artistId, excludeArtistId, seen) {
+  const tracks = [];
+  try {
+    const { data } = await client.get(`/artists/${artistId}/related-artists`);
+    const related = (data.artists ?? []).filter((a) => a.id !== excludeArtistId).slice(0, 6);
+
+    await Promise.allSettled(
+      related.map(async (a) => {
+        try {
+          const { data: td } = await client.get(`/artists/${a.id}/top-tracks`, {
+            params: { market: 'US' },
+          });
+          for (const track of (td.tracks ?? []).slice(0, 3)) {
+            if (track?.id && !seen.has(track.id)) {
+              seen.add(track.id);
+              tracks.push(track);
+            }
+          }
+        } catch { /* skip individual artist */ }
+      })
+    );
+  } catch { /* skip if related-artists call fails */ }
+  return tracks;
+}
+
+/** Returns true if any of the track's artists match the given ID (catches features). */
+function trackInvolvesArtist(track, artistId) {
+  return (track.artists ?? []).some((a) => a.id === artistId);
+}
+
+/**
+ * Builds the candidate pool. When a prompt names a reference song/artist we use
+ * Spotify's related-artists graph — not genre search — because genre search always
+ * returns the same top-charting tracks sorted by popularity. Related artists gives
+ * a genuinely different pool for every reference artist.
  */
 async function searchCandidates(client, tasteProfile, topTracks, listenedIds, userPrompt = null) {
   const candidates = [];
@@ -65,24 +93,32 @@ async function searchCandidates(client, tasteProfile, topTracks, listenedIds, us
   const profileArtists = [...new Set(topTracks.slice(0, 5).map((t) => t.artist))];
   const promptTerms = userPrompt ? extractSearchTerms(userPrompt) : null;
 
-  // When a prompt is given, resolve the reference artist's real Spotify genres
-  let searchGenres = profileGenres;
-  let excludeArtistId = null;
-
   if (promptTerms) {
-    const ref = await resolveReferenceGenres(client, promptTerms);
+    const ref = await resolveReferenceArtist(client, promptTerms);
     if (ref) {
-      searchGenres = ref.genres;           // e.g. ["country", "oklahoma country"]
-      excludeArtistId = ref.excludeArtistId; // don't suggest the reference artist's own songs
+      // Primary source: related artists' top tracks via Spotify's similarity graph
+      const relatedTracks = await getRelatedArtistTracks(client, ref.artistId, ref.artistId, seen);
+      candidates.push(...relatedTracks);
+
+      // Filter out the reference artist (including features) and listened tracks
+      const filtered = candidates
+        .filter((t) => !trackInvolvesArtist(t, ref.artistId))
+        .filter((t) => !listenedIds.has(t.id));
+
+      const artistCount = {};
+      return filtered.filter((t) => {
+        const artist = t.artists?.[0]?.name ?? 'Unknown';
+        artistCount[artist] = (artistCount[artist] || 0) + 1;
+        return artistCount[artist] <= 3;
+      });
     }
   }
 
-  // If we resolved a reference artist, use only their genres — don't pollute with
-  // the user's profile artists (e.g. Jack Harlow appearing in country results).
-  // Fall back to profile artists only when the genre lookup failed.
+  // No reference artist resolved — fall back to profile genre + artist queries
   const queries = [
-    ...searchGenres.map((g) => `genre:"${g}"`),
-    ...(excludeArtistId ? [] : profileArtists.slice(0, 4).map((a) => `artist:"${a}"`)),
+    ...(promptTerms ? [promptTerms] : []),
+    ...profileGenres.map((g) => `genre:"${g}"`),
+    ...profileArtists.slice(0, 4).map((a) => `artist:"${a}"`),
   ].filter(Boolean).slice(0, 7);
 
   for (const query of queries) {
@@ -91,8 +127,7 @@ async function searchCandidates(client, tasteProfile, topTracks, listenedIds, us
         params: { q: query, type: 'track', limit: 10 },
       });
       for (const track of data.tracks?.items ?? []) {
-        const isRefArtist = excludeArtistId && track.artists?.[0]?.id === excludeArtistId;
-        if (track?.id && !seen.has(track.id) && !isRefArtist) {
+        if (track?.id && !seen.has(track.id)) {
           seen.add(track.id);
           candidates.push(track);
         }
@@ -102,10 +137,7 @@ async function searchCandidates(client, tasteProfile, topTracks, listenedIds, us
     }
   }
 
-  // Remove tracks the user has already listened to
   const filtered = candidates.filter((t) => !listenedIds.has(t.id));
-
-  // Cap at 3 tracks per artist so no single artist dominates the candidate pool
   const artistCount = {};
   return filtered.filter((t) => {
     const artist = t.artists?.[0]?.name ?? 'Unknown';
