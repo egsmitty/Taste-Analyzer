@@ -4,7 +4,7 @@ import SuggestionCard from './SuggestionCard';
 import { api } from '../api';
 
 export default function SuggestionsList() {
-  const { topPick, runnersUp, votes, loading, fetchSuggestions, profile } = useApp();
+  const { topPick, runnersUp, lastPrompt, votes, loading, fetchSuggestions, profile } = useApp();
 
   const sortedRunnersUp = [...runnersUp].sort((a, b) => {
     const score = (id) => votes[id] === 'up' ? 1 : votes[id] === 'down' ? -1 : 0;
@@ -62,7 +62,7 @@ export default function SuggestionsList() {
           )}
           <button
             className="btn btn-ghost"
-            onClick={() => fetchSuggestions()}
+            onClick={() => fetchSuggestions(lastPrompt)}
             disabled={loading.suggestions}
           >
             Try again

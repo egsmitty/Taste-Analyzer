@@ -8,6 +8,7 @@ export function AppProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [topPick, setTopPick] = useState(null);
   const [runnersUp, setRunnersUp] = useState([]);
+  const [lastPrompt, setLastPrompt] = useState(null);
   const [votes, setVotes] = useState({}); // { spotifyId: 'up' | 'down' }
   const [loading, setLoading] = useState({ auth: true, analyze: false, suggestions: false });
   const [error, setError] = useState(null);
@@ -62,6 +63,7 @@ export function AppProvider({ children }) {
       const { topPick, runnersUp } = await api.getSuggestions(userText);
       setTopPick(topPick ?? null);
       setRunnersUp(runnersUp ?? []);
+      setLastPrompt(userText ?? null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -91,7 +93,7 @@ export function AppProvider({ children }) {
 
   return (
     <AppContext.Provider value={{
-      authenticated, profile, topPick, runnersUp, votes, loading, error,
+      authenticated, profile, topPick, runnersUp, lastPrompt, votes, loading, error,
       runAnalysis, fetchSuggestions, vote, logout,
     }}>
       {children}
