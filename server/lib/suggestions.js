@@ -35,23 +35,20 @@ async function searchCandidates(client, tasteProfile, topTracks, listenedIds, us
   const genres  = tasteProfile?.topGenres?.slice(0, 3) ?? (tasteProfile?.topGenre ? [tasteProfile.topGenre] : []);
   const artists = [...new Set(topTracks.slice(0, 5).map((t) => t.artist))];
 
-  // When a prompt is given, prioritise it with more results and fewer profile queries
   const promptTerms = userPrompt ? extractSearchTerms(userPrompt) : null;
-  const queries = promptTerms
-    ? [
-        promptTerms,                               // cleaned prompt keywords first
-        ...genres.slice(0, 2).map((g) => `genre:"${g}"`),
-      ]
-    : [
-        ...genres.map((g) => `genre:"${g}"`),
-        ...artists.map((a) => `artist:"${a}"`),
-      ].slice(0, 6);
+
+  // Always keep artist queries as a reliable fallback — genre strings from Claude
+  // (e.g. "melodic rap") often don't match Spotify's genre taxonomy and return 0
+  const queries = [
+    ...(promptTerms ? [promptTerms] : []),
+    ...genres.slice(0, 2).map((g) => `genre:"${g}"`),
+    ...artists.slice(0, 4).map((a) => `artist:"${a}"`),
+  ].filter(Boolean).slice(0, 7);
 
   for (const query of queries) {
-    if (!query) continue;
     try {
       const { data } = await client.get('/search', {
-        params: { q: query, type: 'track', limit: promptTerms ? 15 : 10 },
+        params: { q: query, type: 'track', limit: 10 },
       });
       const items = data.tracks?.items ?? [];
       console.log(`[search] "${query}" → ${items.length} tracks`);
