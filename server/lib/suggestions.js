@@ -47,6 +47,11 @@ async function resolveReferenceArtist(client, promptTerms) {
   }
 }
 
+/** Returns true if the prompt is asking for niche/underground/rare music. */
+function isNichePrompt(prompt) {
+  return /\b(niche|underground|obscure|rare|deep cut|hidden gem|unknown|undiscovered|indie|off the radar)\b/i.test(prompt);
+}
+
 /** Returns true if any of the track's artists match the given ID (catches features). */
 function trackInvolvesArtist(track, artistId) {
   return (track.artists ?? []).some((a) => a.id === artistId);
@@ -73,12 +78,14 @@ async function searchCandidates(client, tasteProfile, topTracks, listenedIds, us
   const profileArtists = [...new Set(topTracks.slice(0, 5).map((t) => t.artist))];
   const promptTerms = userPrompt ? extractSearchTerms(userPrompt) : null;
 
+  const nicheMode = userPrompt ? isNichePrompt(userPrompt) : false;
+
   if (promptTerms) {
     const ref = await resolveReferenceArtist(client, promptTerms);
     if (ref) {
       for (const genre of ref.genres) {
-        // Random offset (0–20) so each call gets a different slice of the genre catalog
-        const offset = Math.floor(Math.random() * 20);
+        // Wide random offset so Try Again lands in a completely different catalog section
+        const offset = Math.floor(Math.random() * 200);
         try {
           const { data } = await client.get('/search', {
             params: { q: `genre:"${genre}"`, type: 'track', limit: 15, offset },
@@ -97,7 +104,8 @@ async function searchCandidates(client, tasteProfile, topTracks, listenedIds, us
       // Only return early if genre searches actually produced candidates;
       // otherwise fall through to the profile fallback below
       if (candidates.length > 0) {
-        const filtered = candidates.filter((t) => !listenedIds.has(t.id));
+        let filtered = candidates.filter((t) => !listenedIds.has(t.id));
+        if (nicheMode) filtered = filtered.filter((t) => (t.popularity ?? 100) < 30);
         const artistCount = {};
         return filtered.filter((t) => {
           const artist = t.artists?.[0]?.name ?? 'Unknown';
@@ -131,7 +139,8 @@ async function searchCandidates(client, tasteProfile, topTracks, listenedIds, us
     }
   }
 
-  const filtered = candidates.filter((t) => !listenedIds.has(t.id));
+  let filtered = candidates.filter((t) => !listenedIds.has(t.id));
+  if (nicheMode) filtered = filtered.filter((t) => (t.popularity ?? 100) < 30);
   const artistCount = {};
   return filtered.filter((t) => {
     const artist = t.artists?.[0]?.name ?? 'Unknown';
