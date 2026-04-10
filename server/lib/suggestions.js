@@ -84,7 +84,14 @@ export async function fetchCandidates(req, topTracks, tasteProfile, userPrompt =
   // Build a set of already-listened track IDs so we can exclude them from candidates
   const listenedIds = new Set(topTracks.map((t) => t.spotifyId).filter(Boolean));
 
-  const rawTracks = await searchCandidates(client, tasteProfile, topTracks, listenedIds, userPrompt);
+  let rawTracks = await searchCandidates(client, tasteProfile, topTracks, listenedIds, userPrompt);
+
+  // If filtering listened tracks left us with too few candidates, fall back to the
+  // unfiltered pool so we always have something for Claude to work with
+  if (rawTracks.length < 5) {
+    rawTracks = await searchCandidates(client, tasteProfile, topTracks, new Set(), userPrompt);
+  }
+
   if (rawTracks.length === 0) throw new Error('No recommendation candidates found');
 
   const artistIds = [...new Set(rawTracks.map((t) => t.artists?.[0]?.id).filter(Boolean))];
