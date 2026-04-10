@@ -77,10 +77,12 @@ async function searchCandidates(client, tasteProfile, topTracks, listenedIds, us
     }
   }
 
-  // Genre queries first, then artist queries as fallback to ensure we always get candidates
+  // If we resolved a reference artist, use only their genres — don't pollute with
+  // the user's profile artists (e.g. Jack Harlow appearing in country results).
+  // Fall back to profile artists only when the genre lookup failed.
   const queries = [
     ...searchGenres.map((g) => `genre:"${g}"`),
-    ...profileArtists.slice(0, 4).map((a) => `artist:"${a}"`),
+    ...(excludeArtistId ? [] : profileArtists.slice(0, 4).map((a) => `artist:"${a}"`)),
   ].filter(Boolean).slice(0, 7);
 
   for (const query of queries) {
