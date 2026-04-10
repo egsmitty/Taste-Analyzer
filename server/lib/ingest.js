@@ -36,6 +36,21 @@ async function fetchArtistGenres(client, artistIds) {
   return genreMap;
 }
 
+function dedupeAndNormalize(rawTracks, artistGenreMap) {
+  const seen = new Set();
+  const deduped = [];
+  for (const { track } of rawTracks) {
+    if (track?.id && !seen.has(track.id)) {
+      seen.add(track.id);
+      deduped.push(track);
+    }
+  }
+  return deduped.map((t) => normalizeTrack(t, artistGenreMap));
+}
+
+/**
+ * Returns merged deduped tracks for seeding suggestions.
+ */
 export async function fetchProfileData(req) {
   const client = await spotifyClient(req);
 
@@ -67,16 +82,52 @@ export async function fetchProfileData(req) {
   ];
 
   const seen = new Set();
-  const dedupedTracks = [];
-  for (const { track } of rawTracks) {
-    if (track?.id && !seen.has(track.id)) {
-      seen.add(track.id);
-      dedupedTracks.push(track);
+  const dedupedRaw = [];
+  for (const entry of rawTracks) {
+    if (entry.track?.id && !seen.has(entry.track.id)) {
+      seen.add(entry.track.id);
+      dedupedRaw.push(entry);
     }
   }
 
-  const artistIds = dedupedTracks.map((t) => t.artists?.[0]?.id).filter(Boolean);
+  const artistIds = dedupedRaw.map((e) => e.track.artists?.[0]?.id).filter(Boolean);
   const artistGenreMap = await fetchArtistGenres(client, artistIds);
 
-  return dedupedTracks.map((track) => normalizeTrack(track, artistGenreMap));
+  return dedupedRaw.map(({ track }) => normalizeTrack(track, artistGenreMap));
+}
+
+/**
+ * Returns separate recent (short_term) and overall (long_term) track sets
+ * for the weekly taste recap analysis.
+ */
+export async function fetchTrackSets(req) {
+  const client = await spotifyClient(req);
+
+  const [shortTermRes, longTermRes] = await Promise.allSettled([
+    client.get('/me/top/tracks', { params: { limit: 50, time_range: 'short_term' } }),
+    client.get('/me/top/tracks', { params: { limit: 50, time_range: 'long_term' } }),
+  ]);
+
+  if (shortTermRes.status === 'rejected') {
+    console.error(`short_term fetch failed: ${shortTermRes.reason?.response?.status ?? shortTermRes.reason?.message}`);
+  }
+  if (longTermRes.status === 'rejected') {
+    console.error(`long_term fetch failed: ${longTermRes.reason?.response?.status ?? longTermRes.reason?.message}`);
+  }
+
+  const shortItems = shortTermRes.status === 'fulfilled' ? shortTermRes.value.data.items ?? [] : [];
+  const longItems  = longTermRes.status === 'fulfilled'  ? longTermRes.value.data.items  ?? [] : [];
+
+  // Collect all unique artist IDs across both sets for genre lookup
+  const allArtistIds = [
+    ...shortItems.map((t) => t.artists?.[0]?.id),
+    ...longItems.map((t) => t.artists?.[0]?.id),
+  ].filter(Boolean);
+
+  const artistGenreMap = await fetchArtistGenres(client, allArtistIds);
+
+  const recentTracks  = dedupeAndNormalize(shortItems.map((t) => ({ track: t })), artistGenreMap);
+  const overallTracks = dedupeAndNormalize(longItems.map((t) => ({ track: t })),  artistGenreMap);
+
+  return { recentTracks, overallTracks };
 }

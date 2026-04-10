@@ -31,9 +31,9 @@ router.get('/', requireAuth, async (req, res) => {
     const candidates = (await fetchCandidates(req, topTracks, tasteProfile)).slice(0, 20);
 
     // Let Claude rank and annotate
-    const suggestions = await rankCandidates(candidates, tasteProfile, userText || null);
+    const { topPick, runnersUp } = await rankCandidates(candidates, tasteProfile, userText || null);
 
-    res.json({ suggestions, count: suggestions.length });
+    res.json({ topPick, runnersUp });
   } catch (err) {
     console.error('suggestions error:', err.message);
     res.status(500).json({ error: err.message || 'Failed to generate suggestions' });

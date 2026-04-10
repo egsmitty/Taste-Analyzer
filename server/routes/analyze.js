@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { fetchProfileData } from '../lib/ingest.js';
+import { fetchTrackSets } from '../lib/ingest.js';
 import { analyzeTaste } from '../lib/analyze.js';
 import { loadProfile, saveProfile } from '../lib/profile.js';
 
@@ -12,29 +12,23 @@ function requireAuth(req, res, next) {
   next();
 }
 
-// POST /api/analyze
-// Body (optional): { userText: "I love dreamy lo-fi and early 2000s indie..." }
+// POST /api/analyze — run weekly taste recap
 router.post('/', requireAuth, async (req, res) => {
-  const { userText } = req.body ?? {};
-
   try {
-    // Fetch Spotify data and prior profile in parallel
-    const [tracks, priorProfile] = await Promise.all([
-      fetchProfileData(req),
+    const [{ recentTracks, overallTracks }, priorProfile] = await Promise.all([
+      fetchTrackSets(req),
       loadProfile(),
     ]);
 
-    if (tracks.length === 0) {
+    const allTracks = [...recentTracks, ...overallTracks];
+    if (allTracks.length === 0) {
       return res.status(422).json({ error: 'No Spotify listening history found. Try adding some tracks first.' });
     }
 
-    // Run Claude analysis
-    const profile = await analyzeTaste(tracks, userText || null, priorProfile);
-
-    // Persist updated profile
+    const profile = await analyzeTaste(recentTracks, overallTracks, priorProfile);
     await saveProfile(profile);
 
-    res.json({ profile, trackCount: tracks.length });
+    res.json({ profile });
   } catch (err) {
     console.error('analyze error:', err.message);
     res.status(500).json({ error: err.message || 'Analysis failed' });

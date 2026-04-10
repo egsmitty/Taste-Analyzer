@@ -6,7 +6,8 @@ const AppContext = createContext(null);
 export function AppProvider({ children }) {
   const [authenticated, setAuthenticated] = useState(false);
   const [profile, setProfile] = useState(null);
-  const [suggestions, setSuggestions] = useState([]);
+  const [topPick, setTopPick] = useState(null);
+  const [runnersUp, setRunnersUp] = useState([]);
   const [votes, setVotes] = useState({}); // { spotifyId: 'up' | 'down' }
   const [loading, setLoading] = useState({ auth: true, analyze: false, suggestions: false });
   const [error, setError] = useState(null);
@@ -39,11 +40,11 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  const runAnalysis = useCallback(async (userText) => {
+  const runAnalysis = useCallback(async () => {
     setLoading((l) => ({ ...l, analyze: true }));
     setError(null);
     try {
-      const { profile } = await api.analyze(userText);
+      const { profile } = await api.analyze();
       setProfile(profile);
       return profile;
     } catch (err) {
@@ -58,8 +59,9 @@ export function AppProvider({ children }) {
     setLoading((l) => ({ ...l, suggestions: true }));
     setError(null);
     try {
-      const { suggestions } = await api.getSuggestions(userText);
-      setSuggestions(suggestions);
+      const { topPick, runnersUp } = await api.getSuggestions(userText);
+      setTopPick(topPick ?? null);
+      setRunnersUp(runnersUp ?? []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -82,13 +84,14 @@ export function AppProvider({ children }) {
     await api.logout();
     setAuthenticated(false);
     setProfile(null);
-    setSuggestions([]);
+    setTopPick(null);
+    setRunnersUp([]);
     setVotes({});
   }, []);
 
   return (
     <AppContext.Provider value={{
-      authenticated, profile, suggestions, votes, loading, error,
+      authenticated, profile, topPick, runnersUp, votes, loading, error,
       runAnalysis, fetchSuggestions, vote, logout,
     }}>
       {children}

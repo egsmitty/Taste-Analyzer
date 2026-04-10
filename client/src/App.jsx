@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useApp } from './AppContext';
 import LoginButton from './components/LoginButton';
 import TasteProfileCard from './components/TasteProfileCard';
@@ -6,8 +5,7 @@ import SuggestionsList from './components/SuggestionsList';
 import TextInputBar from './components/TextInputBar';
 
 export default function App() {
-  const { authenticated, loading, logout, runAnalysis, fetchSuggestions, error } = useApp();
-  const [userText, setUserText] = useState(null);
+  const { authenticated, loading, logout, error } = useApp();
 
   if (loading.auth) {
     return (
@@ -21,16 +19,6 @@ export default function App() {
     return <LoginButton />;
   }
 
-  const handleSubmit = async (text) => {
-    setUserText(text);
-    try {
-      await runAnalysis(text);
-      await fetchSuggestions(text);
-    } catch {
-      // errors are already shown via the error banner in AppContext
-    }
-  };
-
   return (
     <div className="app">
       <header className="app-header">
@@ -40,9 +28,9 @@ export default function App() {
 
       <main className="app-main">
         {error && <div className="error-banner">{error}</div>}
-        <TextInputBar onSubmit={handleSubmit} />
         <TasteProfileCard />
-        <SuggestionsList userText={userText} />
+        <TextInputBar />
+        <SuggestionsList />
       </main>
     </div>
   );

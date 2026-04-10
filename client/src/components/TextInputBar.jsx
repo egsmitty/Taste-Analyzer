@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useApp } from '../AppContext';
 
-export default function TextInputBar({ onSubmit }) {
+export default function TextInputBar() {
   const [text, setText] = useState('');
-  const { loading } = useApp();
-  const busy = loading.analyze || loading.suggestions;
+  const { loading, fetchSuggestions } = useApp();
+  const busy = loading.suggestions;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(text.trim() || null);
+    fetchSuggestions(text.trim() || null);
   };
 
   return (
@@ -17,12 +17,12 @@ export default function TextInputBar({ onSubmit }) {
         type="text"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Describe your mood or taste right now... (optional)"
+        placeholder="What are you in the mood for?"
         disabled={busy}
         maxLength={300}
       />
       <button type="submit" className="btn btn-primary" disabled={busy}>
-        {busy ? '...' : 'Analyze + Suggest'}
+        {busy ? 'Finding...' : 'Find me a song'}
       </button>
     </form>
   );

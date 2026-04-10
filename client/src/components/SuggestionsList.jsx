@@ -3,13 +3,14 @@ import { useApp } from '../AppContext';
 import SuggestionCard from './SuggestionCard';
 import { api } from '../api';
 
-export default function SuggestionsList({ userText }) {
-  const { suggestions, votes, loading, fetchSuggestions, profile } = useApp();
+export default function SuggestionsList() {
+  const { topPick, runnersUp, votes, loading, fetchSuggestions, profile } = useApp();
 
-  const sortedSuggestions = [...suggestions].sort((a, b) => {
+  const sortedRunnersUp = [...runnersUp].sort((a, b) => {
     const score = (id) => votes[id] === 'up' ? 1 : votes[id] === 'down' ? -1 : 0;
     return score(b.spotifyId) - score(a.spotifyId);
   });
+
   const [selected, setSelected] = useState(new Set());
   const [playlistStatus, setPlaylistStatus] = useState(null);
 
@@ -39,33 +40,20 @@ export default function SuggestionsList({ userText }) {
       <div className="suggestions-section">
         <div className="loading-card card">
           <div className="spinner" />
-          <p>Finding songs for you...</p>
+          <p>Finding the perfect song...</p>
         </div>
       </div>
     );
   }
 
-  if (suggestions.length === 0) {
-    return (
-      <div className="suggestions-section">
-        <div className="suggestions-header">
-          <h2>Suggested for You</h2>
-          <button
-            className="btn btn-primary"
-            onClick={() => fetchSuggestions(userText)}
-            disabled={loading.suggestions}
-          >
-            Get Suggestions
-          </button>
-        </div>
-      </div>
-    );
+  if (!topPick && runnersUp.length === 0) {
+    return null;
   }
 
   return (
     <div className="suggestions-section">
       <div className="suggestions-header">
-        <h2>Suggested for You</h2>
+        <h2>Your Song</h2>
         <div className="suggestions-controls">
           {selected.size > 0 && (
             <button className="btn btn-spotify" onClick={handleCreatePlaylist} disabled={playlistStatus === 'loading'}>
@@ -74,10 +62,10 @@ export default function SuggestionsList({ userText }) {
           )}
           <button
             className="btn btn-ghost"
-            onClick={() => fetchSuggestions(userText)}
+            onClick={() => fetchSuggestions()}
             disabled={loading.suggestions}
           >
-            Refresh
+            Try again
           </button>
         </div>
       </div>
@@ -92,16 +80,26 @@ export default function SuggestionsList({ userText }) {
         <div className="playlist-error">Failed: {playlistStatus.error}</div>
       )}
 
-      <div className="suggestions-list">
-        {sortedSuggestions.map((track) => (
-          <SuggestionCard
-            key={track.spotifyId}
-            track={track}
-            selected={selected.has(track.spotifyId)}
-            onSelect={toggleSelect}
-          />
-        ))}
-      </div>
+      {topPick && (
+        <SuggestionCard track={topPick} variant="hero" />
+      )}
+
+      {sortedRunnersUp.length > 0 && (
+        <>
+          <h3 className="runners-up-heading">Also worth a listen</h3>
+          <div className="suggestions-list">
+            {sortedRunnersUp.map((track) => (
+              <SuggestionCard
+                key={track.spotifyId}
+                track={track}
+                variant="compact"
+                selected={selected.has(track.spotifyId)}
+                onSelect={toggleSelect}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

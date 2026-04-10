@@ -4,28 +4,25 @@ import { getClient } from './claude.js';
 const MODEL = 'claude-sonnet-4-6';
 
 /**
- * Builds search queries from the user's taste profile and top tracks.
- * Uses genre tags and top artists as seeds instead of the deprecated /recommendations endpoint.
+ * Searches Spotify for candidate tracks using the taste profile's genres and top artists.
  */
 async function searchCandidates(client, tasteProfile, topTracks) {
   const candidates = [];
   const seen = new Set();
 
-  // Seed queries: top genres from profile + top artists from listening history
-  const genres = tasteProfile?.topGenres?.slice(0, 3) ?? [];
+  const genres  = tasteProfile?.topGenres?.slice(0, 3) ?? (tasteProfile?.topGenre ? [tasteProfile.topGenre] : []);
   const artists = [...new Set(topTracks.slice(0, 5).map((t) => t.artist))];
 
   const queries = [
     ...genres.map((g) => `genre:"${g}"`),
     ...artists.map((a) => `artist:"${a}"`),
-  ].slice(0, 6); // cap at 6 queries
+  ].slice(0, 6);
 
   for (const query of queries) {
     try {
       const { data } = await client.get('/search', {
-        params: { q: query, type: 'track', limit: 10 },
+        params: { q: query, type: 'track', limit: 8 },
       });
-
       for (const track of data.tracks?.items ?? []) {
         if (track?.id && !seen.has(track.id)) {
           seen.add(track.id);
@@ -40,20 +37,14 @@ async function searchCandidates(client, tasteProfile, topTracks) {
   return candidates;
 }
 
-/**
- * Fetches recommendation candidates via Spotify search.
- * Falls back gracefully if profile genres are unavailable.
- */
 export async function fetchCandidates(req, topTracks, tasteProfile) {
   const client = await spotifyClient(req);
 
   if (topTracks.length === 0) throw new Error('No listening history available for recommendations');
 
   const rawTracks = await searchCandidates(client, tasteProfile, topTracks);
-
   if (rawTracks.length === 0) throw new Error('No recommendation candidates found');
 
-  // Fetch artist genres for candidates
   const artistIds = [...new Set(rawTracks.map((t) => t.artists?.[0]?.id).filter(Boolean))];
   const genreMap = {};
 
@@ -82,49 +73,60 @@ export async function fetchCandidates(req, topTracks, tasteProfile) {
 }
 
 /**
- * Sends candidates + taste profile to Claude for ranking and annotation.
- * Returns an ordered array of tracks with Claude's analysis attached.
+ * Asks Claude to pick ONE top song + 3–4 runners-up from the candidates,
+ * crafted specifically for the user's taste and current prompt.
+ *
+ * Returns { topPick, runnersUp } with full track data merged in.
  */
-export async function rankCandidates(candidates, tasteProfile, userText = null) {
+export async function rankCandidates(candidates, tasteProfile, userPrompt = null) {
   const claude = getClient();
 
-  const userSection = userText
-    ? `\n## User's Current Mood / Context\n"${userText}"\nWeight this heavily for today's suggestions.\n`
+  const moodSection = userPrompt
+    ? `## What They're Looking For Right Now\n"${userPrompt}"\nThis is the primary signal — match this above everything else.\n\n`
     : '';
 
-  const prompt = `You are a music recommendation expert. Given a user's taste profile and a list of candidate tracks, rank and annotate the tracks from best to worst match.
+  const prompt = `You are a knowledgeable music friend picking the perfect song for someone. Study their taste and pick ONE song they'll love, then name a few solid alternatives.
 
-## User's Taste Profile
-${JSON.stringify(tasteProfile, null, 2)}
-${userSection}
-## Candidate Tracks
-${JSON.stringify(candidates.map((t) => ({ spotifyId: t.spotifyId, title: t.title, artist: t.artist, genres: t.genres, popularity: t.popularity })), null, 2)}
+## Their Taste Profile
+${JSON.stringify({
+  subgenre: tasteProfile.subgenre,
+  topGenre: tasteProfile.topGenre ?? tasteProfile.topGenres?.[0],
+  nicheScore: tasteProfile.nicheScore,
+  tasteSummary: tasteProfile.tasteSummary,
+}, null, 2)}
+
+${moodSection}## Candidate Tracks (choose from these only)
+${JSON.stringify(candidates.map((t) => ({
+  spotifyId: t.spotifyId,
+  title: t.title,
+  artist: t.artist,
+  genres: t.genres,
+  popularity: t.popularity,
+})), null, 2)}
 
 ## Instructions
-- Rank ALL ${candidates.length} tracks from best to worst match for this user
-- For each track provide:
-  - "spotifyId": copy exactly from input
-  - "matchReason": one punchy sentence explaining WHY this fits their taste — be specific, not generic
-  - "nicheScore": 0–100, how obscure/niche this track is (invert popularity, factor in genre niche-ness)
-  - "genreTag": one short genre label (e.g. "shoegaze", "neo-soul", "dark techno")
-  - "popularityPercentile": 0–100, derived from Spotify popularity score
+- Pick the single best match as "topPick" — the song you'd text a friend right now
+- "explanation": 2–3 sentences, written like a real recommendation. Be specific: name what about the production, lyrics, or vibe makes it perfect for this person. Don't be generic.
+- Pick 3–4 solid alternatives as "runnersUp"
+- "reason" for each runner-up: one punchy sentence
+- "genreTag" for each: one short genre label
 
 ## Output Format
-Respond with ONLY a valid JSON array — no markdown, no explanation:
-[
-  {
+Respond with ONLY valid JSON — no markdown, no explanation:
+{
+  "topPick": {
     "spotifyId": "<string>",
-    "matchReason": "<string>",
-    "nicheScore": <number>,
-    "genreTag": "<string>",
-    "popularityPercentile": <number>
+    "explanation": "<string>",
+    "genreTag": "<string>"
   },
-  ...
-]`;
+  "runnersUp": [
+    { "spotifyId": "<string>", "reason": "<string>", "genreTag": "<string>" }
+  ]
+}`;
 
   const message = await claude.messages.create({
     model: MODEL,
-    max_tokens: 8192,
+    max_tokens: 2048,
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -133,24 +135,29 @@ Respond with ONLY a valid JSON array — no markdown, no explanation:
 
   const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
 
-  let ranked;
+  let result;
   try {
-    ranked = JSON.parse(cleaned);
+    result = JSON.parse(cleaned);
   } catch {
     throw new Error(`Claude returned invalid JSON: ${cleaned.slice(0, 200)}`);
   }
 
-  if (!Array.isArray(ranked)) throw new Error('Claude response was not an array');
+  if (!result.topPick?.spotifyId) throw new Error('Claude response missing topPick');
 
   const candidateMap = Object.fromEntries(candidates.map((c) => [c.spotifyId, c]));
 
-  return ranked
+  const topPickData = candidateMap[result.topPick.spotifyId];
+  const topPick = topPickData
+    ? { ...topPickData, explanation: result.topPick.explanation, genreTag: result.topPick.genreTag }
+    : null;
+
+  const runnersUp = (result.runnersUp ?? [])
     .filter((r) => candidateMap[r.spotifyId])
     .map((r) => ({
       ...candidateMap[r.spotifyId],
-      matchReason: r.matchReason,
-      nicheScore: r.nicheScore,
+      reason: r.reason,
       genreTag: r.genreTag,
-      popularityPercentile: r.popularityPercentile,
     }));
+
+  return { topPick, runnersUp };
 }
