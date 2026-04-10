@@ -137,28 +137,30 @@ body {
   margin-bottom: 16px;
 }
 
-.profile-header h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+.profile-header h2 { font-size: 22px; font-weight: 900; letter-spacing: -0.7px; }
 
 .updated-at { font-size: 12px; color: var(--text-muted); margin-top: 3px; display: block; }
 
 .subgenre-badge {
   display: inline-block;
-  background: var(--accent-dim);
+  background: linear-gradient(135deg, rgba(29,185,84,0.15), rgba(74,222,128,0.08));
   color: var(--accent-bright);
-  border: 1px solid rgba(74, 222, 128, 0.25);
+  border: 1px solid rgba(74, 222, 128, 0.3);
   border-radius: 20px;
-  padding: 5px 14px;
-  font-size: 13px;
-  font-weight: 600;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 700;
   margin-bottom: 14px;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .taste-summary {
-  color: var(--text-muted);
-  font-size: 14px;
+  color: var(--text);
+  font-size: 15px;
   line-height: 1.7;
   margin-bottom: 16px;
+  opacity: 0.85;
 }
 
 .genre-tags {
@@ -183,65 +185,116 @@ body {
 .stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .stat-item {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: 13px 15px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  transition: border-color 0.15s;
 }
 
+.stat-item:hover { border-color: rgba(255,255,255,0.12); }
+
 .stat-label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.8px;
 }
 
 .stat-value {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 800;
   color: var(--text);
   line-height: 1.2;
+  letter-spacing: -0.3px;
 }
 
-.stat-value.niche-score { color: var(--accent-bright); }
+/* ── Niche Strip ──────────────────────────────────── */
+.niche-strip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(29,185,84,0.08) 0%, rgba(74,222,128,0.04) 100%);
+  border: 1px solid rgba(74,222,128,0.2);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
 
-.niche-explanation {
+.niche-strip-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
+.niche-big-num {
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: -2px;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--accent-bright), #a8ff78);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.niche-big-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
+.niche-strip-divider {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(74,222,128,0.2);
+  flex-shrink: 0;
+}
+
+.niche-strip-explanation {
   font-size: 13px;
   color: var(--text-muted);
-  line-height: 1.5;
-  margin-bottom: 14px;
+  line-height: 1.55;
 }
 
+/* ── Weekly Shift ─────────────────────────────────── */
 .weekly-shift {
   background: var(--surface-2);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
   border-radius: 10px;
-  padding: 12px 14px;
+  padding: 12px 16px;
 }
 
 .weekly-shift-label {
   display: block;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   color: var(--accent-bright);
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.8px;
   margin-bottom: 5px;
 }
 
 .weekly-shift p {
   font-size: 13px;
   color: var(--text-muted);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 /* ── Text Input Bar ───────────────────────────────── */
@@ -275,58 +328,75 @@ body {
   align-items: center;
 }
 
-.suggestions-header h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+.suggestions-header h2 {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+  background: linear-gradient(120deg, #fff 40%, var(--accent-bright));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 
 .suggestions-controls { display: flex; gap: 8px; }
 
 .suggestions-list { display: flex; flex-direction: column; gap: 10px; }
 
 .runners-up-heading {
-  font-size: 15px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-muted);
-  letter-spacing: -0.2px;
-  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 6px;
+  padding-left: 2px;
 }
 
 /* ── Hero Card ────────────────────────────────────── */
 .hero-card {
   display: flex;
-  gap: 20px;
+  gap: 22px;
   align-items: flex-start;
-  padding: 22px;
+  padding: 24px;
+  background: linear-gradient(135deg, var(--surface) 60%, rgba(29,185,84,0.05));
+  border-color: rgba(74,222,128,0.15);
 }
 
 .hero-album-art {
-  width: 110px;
-  height: 110px;
-  border-radius: 10px;
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
   object-fit: cover;
   flex-shrink: 0;
   background: var(--surface-2);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
 
 .hero-info { flex: 1; min-width: 0; }
 
 .hero-title {
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  line-height: 1.2;
-  margin-bottom: 4px;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+  line-height: 1.15;
+  margin-bottom: 5px;
 }
 
 .hero-artist {
-  font-size: 15px;
-  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-bright);
   margin-bottom: 10px;
+  opacity: 0.8;
 }
 
 .hero-explanation {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-muted);
   line-height: 1.65;
-  margin-top: 12px;
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
 }
 
 /* ── Suggestion Card ──────────────────────────────── */

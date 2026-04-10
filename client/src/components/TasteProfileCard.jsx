@@ -1,5 +1,13 @@
 import { useApp } from '../AppContext';
 
+function nicheLabel(score) {
+  if (score >= 85) return 'deeply underground';
+  if (score >= 65) return 'pretty niche';
+  if (score >= 45) return 'indie-leaning';
+  if (score >= 25) return 'somewhat mainstream';
+  return 'chart territory';
+}
+
 export default function TasteProfileCard() {
   const { profile, loading, runAnalysis } = useApp();
 
@@ -65,14 +73,19 @@ export default function TasteProfileCard() {
           <span className="stat-label">Songs Listened</span>
           <span className="stat-value">{profile.songCount ?? '—'}</span>
         </div>
-        <div className="stat-item">
-          <span className="stat-label">Niche Score</span>
-          <span className="stat-value niche-score">{profile.nicheScore != null ? `${profile.nicheScore}%` : '—'}</span>
-        </div>
       </div>
 
-      {profile.nicheExplanation && (
-        <p className="niche-explanation">{profile.nicheExplanation}</p>
+      {profile.nicheScore != null && (
+        <div className="niche-strip">
+          <div className="niche-strip-score">
+            <span className="niche-big-num">{profile.nicheScore}</span>
+            <span className="niche-big-label">{nicheLabel(profile.nicheScore)}</span>
+          </div>
+          <div className="niche-strip-divider" />
+          <p className="niche-strip-explanation">
+            {profile.nicheExplanation || 'Niche score based on the underground-ness of your listening.'}
+          </p>
+        </div>
       )}
 
       {profile.weeklyShift && (
