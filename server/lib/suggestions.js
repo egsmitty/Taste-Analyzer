@@ -4,24 +4,27 @@ import { getClient } from './claude.js';
 const MODEL = 'claude-sonnet-4-6';
 
 /**
- * Searches Spotify for candidate tracks using the taste profile's genres and top artists.
+ * Searches Spotify for candidate tracks using the taste profile's genres, top artists,
+ * and (when provided) the user's mood/prompt text directly.
  */
-async function searchCandidates(client, tasteProfile, topTracks) {
+async function searchCandidates(client, tasteProfile, topTracks, userPrompt = null) {
   const candidates = [];
   const seen = new Set();
 
   const genres  = tasteProfile?.topGenres?.slice(0, 3) ?? (tasteProfile?.topGenre ? [tasteProfile.topGenre] : []);
   const artists = [...new Set(topTracks.slice(0, 5).map((t) => t.artist))];
 
+  // If the user gave a prompt, search it first so those results seed the pool
   const queries = [
+    ...(userPrompt ? [userPrompt] : []),
     ...genres.map((g) => `genre:"${g}"`),
     ...artists.map((a) => `artist:"${a}"`),
-  ].slice(0, 6);
+  ].slice(0, 7);
 
   for (const query of queries) {
     try {
       const { data } = await client.get('/search', {
-        params: { q: query, type: 'track', limit: 8 },
+        params: { q: query, type: 'track', limit: 10 },
       });
       for (const track of data.tracks?.items ?? []) {
         if (track?.id && !seen.has(track.id)) {
@@ -34,15 +37,21 @@ async function searchCandidates(client, tasteProfile, topTracks) {
     }
   }
 
-  return candidates;
+  // Cap at 3 tracks per artist so no single artist dominates the candidate pool
+  const artistCount = {};
+  return candidates.filter((t) => {
+    const artist = t.artists?.[0]?.name ?? 'Unknown';
+    artistCount[artist] = (artistCount[artist] || 0) + 1;
+    return artistCount[artist] <= 3;
+  });
 }
 
-export async function fetchCandidates(req, topTracks, tasteProfile) {
+export async function fetchCandidates(req, topTracks, tasteProfile, userPrompt = null) {
   const client = await spotifyClient(req);
 
   if (topTracks.length === 0) throw new Error('No listening history available for recommendations');
 
-  const rawTracks = await searchCandidates(client, tasteProfile, topTracks);
+  const rawTracks = await searchCandidates(client, tasteProfile, topTracks, userPrompt);
   if (rawTracks.length === 0) throw new Error('No recommendation candidates found');
 
   const artistIds = [...new Set(rawTracks.map((t) => t.artists?.[0]?.id).filter(Boolean))];

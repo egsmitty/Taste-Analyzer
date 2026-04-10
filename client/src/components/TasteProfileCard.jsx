@@ -49,30 +49,22 @@ export default function TasteProfileCard() {
       <p className="taste-summary">{profile.tasteSummary}</p>
 
       <div className="stats-grid">
-        {profile.topArtist && (
-          <div className="stat-item">
-            <span className="stat-label">Top Artist</span>
-            <span className="stat-value">{profile.topArtist}</span>
-          </div>
-        )}
-        {profile.topGenre && (
-          <div className="stat-item">
-            <span className="stat-label">Top Genre</span>
-            <span className="stat-value">{profile.topGenre}</span>
-          </div>
-        )}
-        {profile.genreCount > 0 && (
-          <div className="stat-item">
-            <span className="stat-label">Genres Explored</span>
-            <span className="stat-value">{profile.genreCount}</span>
-          </div>
-        )}
-        {profile.nicheScore != null && (
-          <div className="stat-item">
-            <span className="stat-label">Niche Score</span>
-            <span className="stat-value niche-score">{profile.nicheScore}%</span>
-          </div>
-        )}
+        <div className="stat-item">
+          <span className="stat-label">Top Artist</span>
+          <span className="stat-value">{profile.topArtist || '—'}</span>
+        </div>
+        <div className="stat-item">
+          <span className="stat-label">Top Genre</span>
+          <span className="stat-value">{profile.topGenre || '—'}</span>
+        </div>
+        <div className="stat-item">
+          <span className="stat-label">Genres Explored</span>
+          <span className="stat-value">{profile.genreCount ?? '—'}</span>
+        </div>
+        <div className="stat-item">
+          <span className="stat-label">Niche Score</span>
+          <span className="stat-value niche-score">{profile.nicheScore != null ? `${profile.nicheScore}%` : '—'}</span>
+        </div>
       </div>
 
       {profile.nicheExplanation && (
@@ -81,7 +73,7 @@ export default function TasteProfileCard() {
 
       {profile.weeklyShift && (
         <div className="weekly-shift">
-          <span className="weekly-shift-label">This week</span>
+          <span className="weekly-shift-label">What changed</span>
           <p>{profile.weeklyShift}</p>
         </div>
       )}
