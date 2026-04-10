@@ -5,7 +5,7 @@ export default function SuggestionCard({ track, selected, onSelect }) {
   const userVote = votes[track.spotifyId];
 
   return (
-    <div className={`card suggestion-card ${selected ? 'selected' : ''}`}>
+    <div className={`card suggestion-card ${selected ? 'selected' : ''} ${userVote === 'up' ? 'voted-up' : ''} ${userVote === 'down' ? 'voted-down' : ''}`}>
       <div className="suggestion-select" onClick={() => onSelect(track.spotifyId)}>
         <div className={`checkbox ${selected ? 'checked' : ''}`} />
       </div>
@@ -23,12 +23,8 @@ export default function SuggestionCard({ track, selected, onSelect }) {
         <div className="suggestion-title">{track.title}</div>
         <div className="suggestion-artist">{track.artist}</div>
         <div className="suggestion-reason">{track.matchReason}</div>
-
         <div className="suggestion-meta">
-          <span className="genre-tag">{track.genreTag}</span>
-          <span className="niche-badge" title="Niche Score">
-            {track.nicheScore}% niche
-          </span>
+          {track.genreTag && <span className="genre-tag-small">{track.genreTag}</span>}
         </div>
       </div>
 
@@ -36,16 +32,16 @@ export default function SuggestionCard({ track, selected, onSelect }) {
         <button
           className={`vote-btn ${userVote === 'up' ? 'active-up' : ''}`}
           onClick={() => vote(track.spotifyId, 'up')}
-          title="Like"
+          title="Love it"
         >
-          ▲
+          ♥
         </button>
         <button
           className={`vote-btn ${userVote === 'down' ? 'active-down' : ''}`}
           onClick={() => vote(track.spotifyId, 'down')}
-          title="Dislike"
+          title="Not for me"
         >
-          ▼
+          ✕
         </button>
       </div>
     </div>

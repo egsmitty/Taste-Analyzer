@@ -4,7 +4,12 @@ import SuggestionCard from './SuggestionCard';
 import { api } from '../api';
 
 export default function SuggestionsList({ userText }) {
-  const { suggestions, loading, fetchSuggestions, profile } = useApp();
+  const { suggestions, votes, loading, fetchSuggestions, profile } = useApp();
+
+  const sortedSuggestions = [...suggestions].sort((a, b) => {
+    const score = (id) => votes[id] === 'up' ? 1 : votes[id] === 'down' ? -1 : 0;
+    return score(b.spotifyId) - score(a.spotifyId);
+  });
   const [selected, setSelected] = useState(new Set());
   const [playlistStatus, setPlaylistStatus] = useState(null);
 
@@ -88,7 +93,7 @@ export default function SuggestionsList({ userText }) {
       )}
 
       <div className="suggestions-list">
-        {suggestions.map((track) => (
+        {sortedSuggestions.map((track) => (
           <SuggestionCard
             key={track.spotifyId}
             track={track}
