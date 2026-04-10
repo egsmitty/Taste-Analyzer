@@ -235,7 +235,16 @@ body {
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
-  min-width: 60px;
+  min-width: 72px;
+}
+
+.niche-strip-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 2px;
 }
 
 .niche-big-num {
