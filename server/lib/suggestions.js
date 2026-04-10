@@ -25,24 +25,62 @@ function extractSearchTerms(prompt) {
 }
 
 /**
- * Searches Spotify for candidate tracks using the taste profile's genres, top artists,
- * and (when provided) the user's mood/prompt text directly.
+ * When a prompt is given, find the reference track on Spotify to get the artist's
+ * real genre tags (e.g. "country", "oklahoma country") — these are actual Spotify
+ * genre IDs that work in search, unlike Claude-generated genre labels.
+ * Returns { genres, excludeArtistId } so we can search the right genre and
+ * exclude the reference artist's own songs.
+ */
+async function resolveReferenceGenres(client, promptTerms) {
+  try {
+    const { data } = await client.get('/search', {
+      params: { q: promptTerms, type: 'track', limit: 1 },
+    });
+    const refTrack = data.tracks?.items?.[0];
+    if (!refTrack) return null;
+
+    const refArtist = refTrack.artists?.[0];
+    if (!refArtist?.id) return null;
+
+    const { data: artistData } = await client.get(`/artists/${refArtist.id}`);
+    const genres = artistData.genres ?? [];
+    if (genres.length === 0) return null;
+
+    return { genres: genres.slice(0, 3), excludeArtistId: refArtist.id };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Searches Spotify for candidate tracks. When a prompt references a specific song/artist,
+ * we look up that artist's real Spotify genres and search those — not the user's taste
+ * profile genres, which would pollute results with unrelated music.
  */
 async function searchCandidates(client, tasteProfile, topTracks, listenedIds, userPrompt = null) {
   const candidates = [];
   const seen = new Set();
 
-  const genres  = tasteProfile?.topGenres?.slice(0, 3) ?? (tasteProfile?.topGenre ? [tasteProfile.topGenre] : []);
-  const artists = [...new Set(topTracks.slice(0, 5).map((t) => t.artist))];
-
+  const profileGenres = tasteProfile?.topGenres?.slice(0, 3) ?? (tasteProfile?.topGenre ? [tasteProfile.topGenre] : []);
+  const profileArtists = [...new Set(topTracks.slice(0, 5).map((t) => t.artist))];
   const promptTerms = userPrompt ? extractSearchTerms(userPrompt) : null;
 
-  // Always keep artist queries as a reliable fallback — genre strings from Claude
-  // (e.g. "melodic rap") often don't match Spotify's genre taxonomy and return 0
+  // When a prompt is given, resolve the reference artist's real Spotify genres
+  let searchGenres = profileGenres;
+  let excludeArtistId = null;
+
+  if (promptTerms) {
+    const ref = await resolveReferenceGenres(client, promptTerms);
+    if (ref) {
+      searchGenres = ref.genres;           // e.g. ["country", "oklahoma country"]
+      excludeArtistId = ref.excludeArtistId; // don't suggest the reference artist's own songs
+    }
+  }
+
+  // Genre queries first, then artist queries as fallback to ensure we always get candidates
   const queries = [
-    ...(promptTerms ? [promptTerms] : []),
-    ...genres.slice(0, 2).map((g) => `genre:"${g}"`),
-    ...artists.slice(0, 4).map((a) => `artist:"${a}"`),
+    ...searchGenres.map((g) => `genre:"${g}"`),
+    ...profileArtists.slice(0, 4).map((a) => `artist:"${a}"`),
   ].filter(Boolean).slice(0, 7);
 
   for (const query of queries) {
@@ -50,10 +88,9 @@ async function searchCandidates(client, tasteProfile, topTracks, listenedIds, us
       const { data } = await client.get('/search', {
         params: { q: query, type: 'track', limit: 10 },
       });
-      const items = data.tracks?.items ?? [];
-      console.log(`[search] "${query}" → ${items.length} tracks`);
-      for (const track of items) {
-        if (track?.id && !seen.has(track.id)) {
+      for (const track of data.tracks?.items ?? []) {
+        const isRefArtist = excludeArtistId && track.artists?.[0]?.id === excludeArtistId;
+        if (track?.id && !seen.has(track.id) && !isRefArtist) {
           seen.add(track.id);
           candidates.push(track);
         }
