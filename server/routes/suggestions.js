@@ -28,7 +28,7 @@ router.get('/', requireAuth, async (req, res) => {
 
     // Fetch user's top tracks (needed for seeding) and recommendation candidates
     const topTracks = await fetchProfileData(req);
-    const candidates = await fetchCandidates(req, topTracks, tasteProfile);
+    const candidates = (await fetchCandidates(req, topTracks, tasteProfile)).slice(0, 20);
 
     // Let Claude rank and annotate
     const suggestions = await rankCandidates(candidates, tasteProfile, userText || null);
